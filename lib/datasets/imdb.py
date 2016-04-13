@@ -235,10 +235,24 @@ class imdb(object):
                 gt_classes = gt_roidb[i]['gt_classes']
                 gt_overlaps = bbox_overlaps(boxes.astype(np.float),
                                             gt_boxes.astype(np.float))
+#                 if i == 35:
+#                 	pdb.set_trace()
+#                 print 'boxes_length: ', len(gt_boxes)
+#                 print 'gt_overlaps:', gt_overlaps
+#                 print 'length:', len(gt_overlaps)
+#                 if len(gt_boxes) != 0:
+#                   pdb.set_trace()
+#                   print 'gt_overlaps:', gt_overlaps
+#                 print gt_overlaps, i
                 argmaxes = gt_overlaps.argmax(axis=1)
                 maxes = gt_overlaps.max(axis=1)
                 I = np.where(maxes > 0)[0]
                 overlaps[I, gt_classes[argmaxes[I]]] = maxes[I]
+#                   print 'overlaps:', overlaps
+#                 else:
+#                 	argmaxes = []
+#                 	overlaps = [[]]
+#                 	maxes = []
 
             overlaps = scipy.sparse.csr_matrix(overlaps)
             roidb.append({
