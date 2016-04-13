@@ -7,7 +7,7 @@
 
 import datasets
 import os
-import datasets.imdb
+from datasets.imdb import imdb
 import datasets.hover
 import xml.dom.minidom as minidom
 import numpy as np
@@ -18,10 +18,13 @@ import cPickle
 import subprocess
 import pdb
 import json
+from fast_rcnn.config import cfg
 
-class hover(datasets.imdb):
-    def __init__(self, image_set, devkit_path):
-        datasets.imdb.__init__(self, image_set)
+class hover(imdb):
+  def __init__(self, image_set, devkit_path):
+        imdb.__init__(self, image_set)
+#         pdb.set_trace()
+        print image_set
         self._image_set = image_set
         self._devkit_path = devkit_path
         if image_set == 'train':
@@ -52,14 +55,14 @@ class hover(datasets.imdb):
         assert os.path.exists(self._data_path), \
                 'Path does not exist: {}'.format(self._data_path)
 
-    def image_path_at(self, i):
+  def image_path_at(self, i):
         """
         Return the absolute path to image i in the image sequence.
         """
 #         print self.image_path_from_index(self._image_index[i])
         return self.image_path_from_index(self._image_index[i])
 
-    def image_path_from_index(self, index):
+  def image_path_from_index(self, index):
         """
         Construct an image path from the image's "index" identifier.
         """
@@ -72,7 +75,7 @@ class hover(datasets.imdb):
                 'Path does not exist: {}'.format(image_path)
 	return image_path
 
-    def _load_image_set_index(self):
+  def _load_image_set_index(self):
         """
         Load the indexes listed in this dataset's image set file.
         """
@@ -86,7 +89,7 @@ class hover(datasets.imdb):
             image_index = [x.strip() for x in f.readlines()]
         return image_index
 
-    def gt_roidb(self):
+  def gt_roidb(self):
         """
         Return the database of ground-truth regions of interest.
 
@@ -104,14 +107,14 @@ class hover(datasets.imdb):
         annotations_data.close()
         gt_roidb = [self._load_hover_annotation(index)
                     for index in self.image_index]
-        pdb.set_trace()
+#         pdb.set_trace()
         with open(cache_file, 'wb') as fid:
             cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
         print 'wrote gt roidb to {}'.format(cache_file)
 
         return gt_roidb
 
-    def selective_search_roidb(self):
+  def selective_search_roidb(self):
         """
         Return the database of selective search regions of interest.
         Ground-truth ROIs are also included.
@@ -140,13 +143,13 @@ class hover(datasets.imdb):
 
         return roidb
 
-    def _load_selective_search_roidb(self, gt_roidb):
+  def _load_selective_search_roidb(self, gt_roidb):
         filename = os.path.abspath(os.path.join(self._devkit_path,
                                                 self.name + '.mat'))
         print filename
         assert os.path.exists(filename), \
                'Selective search data not found at: {}'.format(filename)
-	raw_data = sio.loadmat(filename)['all_boxes'].ravel()
+        raw_data = sio.loadmat(filename)['all_boxes'].ravel()
 # 	pdb.set_trace()
 
         box_list = []
@@ -154,9 +157,9 @@ class hover(datasets.imdb):
             box_list.append(raw_data[i][:, (1, 0, 3, 2)] - 1)
 
 # 	pdb.set_trace()
-	return self.create_roidb_from_box_list(box_list, gt_roidb)
+        return self.create_roidb_from_box_list(box_list, gt_roidb)
 
-    def selective_search_IJCV_roidb(self):
+  def selective_search_IJCV_roidb(self):
         """
         eturn the database of selective search regions of interest.
         Ground-truth ROIs are also included.
@@ -184,7 +187,7 @@ class hover(datasets.imdb):
 
         return roidb
 
-    def _load_selective_search_IJCV_roidb(self, gt_roidb):
+  def _load_selective_search_IJCV_roidb(self, gt_roidb):
         IJCV_path = os.path.abspath(os.path.join(self.cache_path, '..',
                                                  'selective_search_IJCV_data',
                                                  self.name))
@@ -201,14 +204,14 @@ class hover(datasets.imdb):
 
         return self.create_roidb_from_box_list(box_list, gt_roidb)
 
-    def floor_or_ceil(self, val, dim_max):
+  def floor_or_ceil(self, val, dim_max):
       if val < 0:
         return 0
       if val >= dim_max:
         return dim_max - 1
       return val
 
-    def _load_hover_annotation(self, index):
+  def _load_hover_annotation(self, index):
         """
         Load image and bounding boxes info from txt files of INRIAPerson.
         """
@@ -286,7 +289,7 @@ class hover(datasets.imdb):
                 'gt_overlaps' : overlaps,
                 'flipped' : False}
 
-    def _write_hover_results_file(self, all_boxes):
+  def _write_hover_results_file(self, all_boxes):
         use_salt = self.config['use_salt']
         comp_id = 'comp4'
         if use_salt:
@@ -313,7 +316,7 @@ class hover(datasets.imdb):
                                        dets[k, 2] + 1, dets[k, 3] + 1))
         return comp_id
 
-    def _do_matlab_eval(self, comp_id, output_dir='output'):
+  def _do_matlab_eval(self, comp_id, output_dir='output'):
         rm_results = self.config['cleanup']
 
         path = os.path.join(os.path.dirname(__file__),
@@ -327,11 +330,11 @@ class hover(datasets.imdb):
         print('Running:\n{}'.format(cmd))
         status = subprocess.call(cmd, shell=True)
 
-    def evaluate_detections(self, all_boxes, output_dir):
+  def evaluate_detections(self, all_boxes, output_dir):
         comp_id = self._write_hover_results_file(all_boxes)
         self._do_matlab_eval(comp_id, output_dir)
 
-    def competition_mode(self, on):
+  def competition_mode(self, on):
         if on:
             self.config['use_salt'] = False
             self.config['cleanup'] = False

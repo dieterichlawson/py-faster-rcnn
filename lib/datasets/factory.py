@@ -10,7 +10,7 @@
 __sets = {}
 
 # import datasets.pascal_voc
-import datasets.hover
+from datasets.hover import hover
 import numpy as np
 import pdb
 
@@ -47,7 +47,7 @@ hover_devkit_path = '/scratch/deep_learning_data/fast-rcnn-data'
 for split in ['train', 'test']:
     name = '{}_{}'.format('hover', split)
 #     pdb.set_trace()
-    __sets[name] = (lambda split=split: datasets.hover(split, hover_devkit_path))
+    __sets[name] = (lambda split=split: hover(split, hover_devkit_path))
 
 def get_imdb(name):
     """Get an imdb (image database) by name."""
