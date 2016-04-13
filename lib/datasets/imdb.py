@@ -11,6 +11,10 @@ import PIL
 from utils.cython_bbox import bbox_overlaps
 import numpy as np
 import scipy.sparse
+import datasets
+import pdb
+import sys
+import json
 from fast_rcnn.config import cfg
 
 class imdb(object):
@@ -70,6 +74,9 @@ class imdb(object):
     @property
     def cache_path(self):
         cache_path = osp.abspath(osp.join(cfg.DATA_DIR, 'cache'))
+#         print cfg.DATA_DIR
+#         print datasets.ROOTDIR
+#         cache_path = osp.abspath(osp.join(datasets.ROOT_DIR, 'data', 'cache'))
         if not os.path.exists(cache_path):
             os.makedirs(cache_path)
         return cache_path
@@ -102,19 +109,29 @@ class imdb(object):
     def append_flipped_images(self):
         num_images = self.num_images
         widths = self._get_widths()
+        f = open(self.annotations_file, 'r')
+        x = json.load(f)
+        f.close()
+        pdb.set_trace()
+#         widths = [PIL.Image.open(self.image_path_at(i)).size[0]
+#                   for i in xrange(num_images)]
+#         widths = [x[self._image_index[i].split('_')[1]]['camera']['width'] for i in xrange(num_images)]
+        widths = [320 for _ in xrange(num_images)]
         for i in xrange(num_images):
             boxes = self.roidb[i]['boxes'].copy()
             oldx1 = boxes[:, 0].copy()
             oldx2 = boxes[:, 2].copy()
             boxes[:, 0] = widths[i] - oldx2 - 1
             boxes[:, 2] = widths[i] - oldx1 - 1
+#             pdb.set_trace()
             assert (boxes[:, 2] >= boxes[:, 0]).all()
             entry = {'boxes' : boxes,
                      'gt_overlaps' : self.roidb[i]['gt_overlaps'],
                      'gt_classes' : self.roidb[i]['gt_classes'],
                      'flipped' : True}
+            print 'Appending flipped images:', i, self.image_index[i], sys.getsizeof(entry)
             self.roidb.append(entry)
-        self._image_index = self._image_index * 2
+            self._image_index = self._image_index * 2
 
     def evaluate_recall(self, candidate_boxes=None, thresholds=None,
                         area='all', limit=None):
@@ -220,10 +237,24 @@ class imdb(object):
                 gt_classes = gt_roidb[i]['gt_classes']
                 gt_overlaps = bbox_overlaps(boxes.astype(np.float),
                                             gt_boxes.astype(np.float))
+#                 if i == 35:
+#                 	pdb.set_trace()
+#                 print 'boxes_length: ', len(gt_boxes)
+#                 print 'gt_overlaps:', gt_overlaps
+#                 print 'length:', len(gt_overlaps)
+#                 if len(gt_boxes) != 0:
+#                   pdb.set_trace()
+#                   print 'gt_overlaps:', gt_overlaps
+#                 print gt_overlaps, i
                 argmaxes = gt_overlaps.argmax(axis=1)
                 maxes = gt_overlaps.max(axis=1)
                 I = np.where(maxes > 0)[0]
                 overlaps[I, gt_classes[argmaxes[I]]] = maxes[I]
+#                   print 'overlaps:', overlaps
+#                 else:
+#                 	argmaxes = []
+#                 	overlaps = [[]]
+#                 	maxes = []
 
             overlaps = scipy.sparse.csr_matrix(overlaps)
             roidb.append({

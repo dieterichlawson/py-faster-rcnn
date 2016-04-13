@@ -33,6 +33,11 @@ case $DATASET in
     echo "Not implemented: use experiments/scripts/faster_rcnn_end2end.sh for coco"
     exit
     ;;
+  hover)
+    TRAIN_IMDB="hover_train"
+    TEST_IMDB="hover_test"
+    PT_DIR="hover"
+    ;;
   *)
     echo "No dataset given"
     exit
