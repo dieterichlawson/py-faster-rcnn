@@ -5,6 +5,8 @@
 # Written by Ross Girshick
 # --------------------------------------------------------
 
+
+from itertools import izip_longest
 import datasets
 import os
 from datasets.imdb import imdb
@@ -32,15 +34,14 @@ class hover(imdb):
         else:
           self._data_path = os.path.join(self._devkit_path)
 #           print 'testing data import'
-        self.annotations_file = '/scratch/deep_learning_data/fast-rcnn-data/output.json'
+        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box' 
         self._classes = ('__background__', # always index 0
                          'gable',
-                         'window',
-                         'door')
+                         )
         print 'number of classes: ', self.num_classes
 #         pdb.set_trace()
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
-        self._image_ext = ['.jpg', '.png']
+        self._image_ext = ['.jpg']
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
         self._roidb_handler = self.selective_search_roidb
@@ -69,6 +70,7 @@ class hover(imdb):
         for ext in self._image_ext:
             image_path = os.path.join(self._data_path, 'Images',
                                   index + ext)
+            #print image_path
             if os.path.exists(image_path):
                 break
         assert os.path.exists(image_path), \
@@ -103,10 +105,10 @@ class hover(imdb):
             return roidb
 
         annotations_data = open(self.annotations_file, 'r')
-        self.ann_json_data = json.load(annotations_data)
+        #self.ann_json_data = json.load(annotations_data)
+        gt_roidb = [self._load_hover_annotation(line)
+                    for line in annotations_data]
         annotations_data.close()
-        gt_roidb = [self._load_hover_annotation(index)
-                    for index in self.image_index]
 #         pdb.set_trace()
         with open(cache_file, 'wb') as fid:
             cPickle.dump(gt_roidb, fid, cPickle.HIGHEST_PROTOCOL)
@@ -211,83 +213,41 @@ class hover(imdb):
         return dim_max - 1
       return val
 
+  def parse_line(self,line):
+      def grouper(n, iterable, fillvalue=None):
+          args = [iter(iterable)] * n
+          return izip_longest(fillvalue=fillvalue, *args)
+
+      fields = line.split()
+      im_id = fields[0]
+      #num_gables, num_windows = fields[1:3]
+      #num_gables = int(num_gables)
+      #num_windows = int(num_windows)
+      num_gables= int(fields[1])
+      gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[2:])]
+      #gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3:3+4*num_gables])]
+      #window_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3+4*num_gables:])]
+      #return im_id, gable_bboxes, window_bboxes
+      return im_id, gable_bboxes
+
   def _load_hover_annotation(self, index):
-        """
-        Load image and bounding boxes info from txt files of INRIAPerson.
-        """
-#         filename = os.path.join(self._data_path, 'Annotations', index + '.txt')
-#         # print 'Loading: {}'.format(filename)
-# 	with open(filename) as f:
-#             data = f.read()
-# 	import re
-# 	objs = re.findall('\(\d+, \d+\)[\s\-]+\(\d+, \d+\)', data)
-
-        img_id = index.split('_')[1]
-        prim_objs = []
-        window_objs = []
-        door_objs = []
-        objs_idx = []
-#         pdb.set_trace()
-#         if img_id == '182035':
-#         	pdb.set_trace()
-
-        width = self.ann_json_data[img_id]['camera']['width']
-        height = self.ann_json_data[img_id]['camera']['height']
-        if img_id in self.ann_json_data.keys() and 'markups' in self.ann_json_data[img_id].keys():
-          if 'primitives' in self.ann_json_data[img_id]['markups'].keys():
-#           if img_id == '182016':
-#           	pdb.set_trace()
-            prim_objs = [self.ann_json_data[img_id]['markups']['primitives'][t]['triangle_bbox']
-                for t in self.ann_json_data[img_id]['markups']['primitives'].keys() if
-                'triangle_bbox' in self.ann_json_data[img_id]['markups']['primitives'][t].keys()]
-            objs_idx = objs_idx + [1 for _ in range(len(prim_objs))]
-#         pdb.set_trace()
-          if 'openings' in self.ann_json_data[img_id]['markups'].keys():
-            window_objs = [t['points'] for t in
-                self.ann_json_data[img_id]['markups']['openings'] if
-                t['openingTypeIndex'] == 0]
-            objs_idx = objs_idx + [2 for _ in range(len(window_objs))]
-            door_objs = [t['points'] for t in
-                self.ann_json_data[img_id]['markups']['openings'] if
-                t['openingTypeIndex'] == 1]
-            objs_idx = objs_idx + [3 for _ in range(len(door_objs))]
-          num_objs = len(prim_objs) + len(window_objs) + len(door_objs)
-          if num_objs == 0:
-            print 'Processing image id: ' + img_id + ' does not have markups data'
-        else:
-          print 'Processing image id: ' + img_id + ' does not have markups or image data'
-
-        num_objs = len(prim_objs) + len(window_objs) + len(door_objs)
-        objs = prim_objs + window_objs + door_objs
-
-        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
-        gt_classes = np.zeros((num_objs), dtype=np.int32)
-        overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
-
-        # Load object bounding boxes into a data frame.
-        for ix, obj in enumerate(zip(objs, objs_idx)):
-            # Make pixel indexes 0-based
-            # coor = re.findall('\d+', obj)
-            x_coords = [t[0] for t in obj[0]]
-            y_coords = [t[1] for t in obj[0]]
-            x1 = self.floor_or_ceil(float(min(x_coords) * (320.0 / width)), width)
-            x2 = self.floor_or_ceil(float(max(x_coords) * (320.0 / width)), width)
-            y1 = self.floor_or_ceil(float(min(y_coords) * (240.0 / height)), height)
-            y2 = self.floor_or_ceil(float(max(y_coords) * (240.0 / height)), height)
-#             cls = self._class_to_ind['person']
-            cls = obj[1]
-            boxes[ix, :] = [x1, y1, x2, y2]
-            gt_classes[ix] = cls
-            overlaps[ix, cls] = 1.0
-
-#         pdb.set_trace()
-        overlaps = scipy.sparse.csr_matrix(overlaps)
-
-#         pdb.set_trace()
-        return {'boxes' : boxes,
-                'gt_classes': gt_classes,
-                'gt_overlaps' : overlaps,
-                'flipped' : False}
+      """
+      Load image and bounding boxes info.
+      """
+      # Load object bounding boxes
+      
+      im_id, gable_bboxes = self.parse_line(index)
+      num_objs = len(gable_bboxes)
+      boxes = np.array(gable_bboxes, dtype=np.float32)
+      gt_classes = np.empty(num_objs, dtype=np.int32)
+      gt_classes.fill(1) # all bboxes are gables currently
+      overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
+      overlaps[:,1] = 1.0 # all boxes are gables...
+      overlaps = scipy.sparse.csr_matrix(overlaps)
+      return {'boxes' : boxes,
+              'gt_classes': gt_classes,
+              'gt_overlaps' : overlaps,
+              'flipped' : False}
 
   def _write_hover_results_file(self, all_boxes):
         use_salt = self.config['use_salt']

@@ -29,9 +29,11 @@ class RoIDataLayer(caffe.Layer):
             vert = np.logical_not(horz)
             horz_inds = np.where(horz)[0]
             vert_inds = np.where(vert)[0]
+            print len(horz_inds),len(vert_inds)
             inds = np.hstack((
                 np.random.permutation(horz_inds),
                 np.random.permutation(vert_inds)))
+            print inds.shape
             inds = np.reshape(inds, (-1, 2))
             row_perm = np.random.permutation(np.arange(inds.shape[0]))
             inds = np.reshape(inds[row_perm, :], (-1,))
