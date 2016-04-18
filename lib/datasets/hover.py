@@ -34,7 +34,7 @@ class hover(imdb):
         else:
           self._data_path = os.path.join(self._devkit_path)
 #           print 'testing data import'
-        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box' 
+        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_sz' 
         self._classes = ('__background__', # always index 0
                          'gable',
                          )
@@ -48,8 +48,10 @@ class hover(imdb):
 
         # Specific config options
         self.config = {'cleanup'  : True,
+                       'use_diff' : False,
                        'use_salt' : True,
-                       'top_k'    : 2000}
+                       'rpn_file' : None }
+                       #'top_k'    : 2000}
 
         assert os.path.exists(self._devkit_path), \
                 'Devkit path does not exist: {}'.format(self._devkit_path)
@@ -220,11 +222,14 @@ class hover(imdb):
 
       fields = line.split()
       im_id = fields[0]
+      hw = fields[2]
+      h = float(hw[0])
+      w = float(hw[1])
       #num_gables, num_windows = fields[1:3]
       #num_gables = int(num_gables)
       #num_windows = int(num_windows)
       num_gables= int(fields[1])
-      gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[2:])]
+      gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3:])]
       #gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3:3+4*num_gables])]
       #window_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3+4*num_gables:])]
       #return im_id, gable_bboxes, window_bboxes
@@ -244,11 +249,41 @@ class hover(imdb):
       overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
       overlaps[:,1] = 1.0 # all boxes are gables...
       overlaps = scipy.sparse.csr_matrix(overlaps)
+      seg_areas = np.zeros((num_objs), dtype=np.float32)
+      for ix, bbox in enumerate(boxes):
+        print bbox
+	x1 = bbox[0] - 1
+	y1 = bbox[1] - 1
+	x2 = bbox[2] - 1
+	y2 = bbox[3] - 1
+	seg_areas[ix] = (x2 - x1 + 1) * (y2 - y1 + 1)
+        print seg_areas[ix]
+
       return {'boxes' : boxes,
               'gt_classes': gt_classes,
               'gt_overlaps' : overlaps,
+              'seg_areas': seg_areas,
               'flipped' : False}
 
+
+  def rpn_roidb(self):
+        if self._image_set != 'test':
+            gt_roidb = self.gt_roidb()
+            rpn_roidb = self._load_rpn_roidb(gt_roidb)
+            roidb = imdb.merge_roidbs(gt_roidb, rpn_roidb)
+        else:
+            roidb = self._load_rpn_roidb(None)
+
+        return roidb
+
+  def _load_rpn_roidb(self, gt_roidb):
+        filename = self.config['rpn_file']
+        print 'loading {}'.format(filename)
+        assert os.path.exists(filename), \
+               'rpn data not found at: {}'.format(filename)
+        with open(filename, 'rb') as f:
+            box_list = cPickle.load(f)
+        return self.create_roidb_from_box_list(box_list, gt_roidb)
   def _write_hover_results_file(self, all_boxes):
         use_salt = self.config['use_salt']
         comp_id = 'comp4'
