@@ -34,7 +34,8 @@ class hover(imdb):
         else:
           self._data_path = os.path.join(self._devkit_path)
 #           print 'testing data import'
-        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_sz' 
+        #self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_sz' 
+        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_test5_gt' 
         self._classes = ('__background__', # always index 0
                          'gable',
                          )
@@ -117,7 +118,7 @@ class hover(imdb):
         print 'wrote gt roidb to {}'.format(cache_file)
 
         return gt_roidb
-
+  
   def selective_search_roidb(self):
         """
         Return the database of selective search regions of interest.
@@ -207,7 +208,7 @@ class hover(imdb):
             box_list.append((raw_data['boxes'][:top_k, :]-1).astype(np.uint16))
 
         return self.create_roidb_from_box_list(box_list, gt_roidb)
-
+  
   def floor_or_ceil(self, val, dim_max):
       if val < 0:
         return 0
@@ -222,14 +223,15 @@ class hover(imdb):
 
       fields = line.split()
       im_id = fields[0]
-      hw = fields[2]
-      h = float(hw[0])
-      w = float(hw[1])
+      #hw = fields[2]
+      #h = float(hw[0])
+      #w = float(hw[1])
       #num_gables, num_windows = fields[1:3]
       #num_gables = int(num_gables)
       #num_windows = int(num_windows)
       num_gables= int(fields[1])
-      gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3:])]
+      #print fields
+      gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[2:])]
       #gable_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3:3+4*num_gables])]
       #window_bboxes = [tuple([float(x) for x in bbox]) for bbox in grouper(4,fields[3+4*num_gables:])]
       #return im_id, gable_bboxes, window_bboxes
@@ -284,50 +286,56 @@ class hover(imdb):
         with open(filename, 'rb') as f:
             box_list = cPickle.load(f)
         return self.create_roidb_from_box_list(box_list, gt_roidb)
-  def _write_hover_results_file(self, all_boxes):
-        use_salt = self.config['use_salt']
-        comp_id = 'comp4'
-        if use_salt:
-            comp_id += '-{}'.format(os.getpid())
 
-        # VOCdevkit/results/comp4-44503_det_test_aeroplane.txt
-        path = os.path.join(self._devkit_path, 'results', self.name, comp_id + '_')
-        pdb.set_trace()
-        for cls_ind, cls in enumerate(self.classes):
-            if cls == '__background__':
-                continue
-            print 'Writing {} results file'.format(cls)
-            filename = path + 'det_' + self._image_set + '_' + cls + '.txt'
-            with open(filename, 'wt') as f:
-                for im_ind, index in enumerate(self.image_index):
-                    dets = all_boxes[cls_ind][im_ind]
-                    if dets == []:
-                        continue
-                    # the VOCdevkit expects 1-based indices
-                    for k in xrange(dets.shape[0]):
-                        f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                                format(index, dets[k, -1],
-                                       dets[k, 0] + 1, dets[k, 1] + 1,
-                                       dets[k, 2] + 1, dets[k, 3] + 1))
-        return comp_id
+  def _do_detection_eval(self, res_file, output_dir):
+    # evaluate recall
+    print "detection eval not implemented yet"
 
-  def _do_matlab_eval(self, comp_id, output_dir='output'):
-        rm_results = self.config['cleanup']
+  # create list of dicts of results for one class
+  # boxes is #images x # dets x 5
+  def _hover_results_one_class(self, boxes, class_id):
+    results = []
+    from IPython import embed
+    for im_ind, index in enumerate(self.image_index):
+      dets = boxes[im_ind].astype(np.float)
+      if dets == []: 
+        continue
+      results.extend(
+        [{'image_id': index,
+          'category_id': class_id,
+          'bbox': dets[k,0:4].tolist(),
+          'score': dets[k,-1]} for k in xrange(dets.shape[0])])
+    return results
 
-        path = os.path.join(os.path.dirname(__file__),
-                            'VOCdevkit-matlab-wrapper')
-        cmd = 'cd {} && '.format(path)
-        cmd += '{:s} -nodisplay -nodesktop '.format(datasets.MATLAB)
-        cmd += '-r "dbstop if error; '
-        cmd += 'setenv(\'LC_ALL\',\'C\'); voc_eval(\'{:s}\',\'{:s}\',\'{:s}\',\'{:s}\',{:d}); quit;"' \
-               .format(self._devkit_path, comp_id,
-                       self._image_set, output_dir, int(rm_results))
-        print('Running:\n{}'.format(cmd))
-        status = subprocess.call(cmd, shell=True)
+  # write out json file of results, with format
+  # [{image_id: 42, category_id: 18, bbox: [2.3, 41.29, 348.26, 243.78], score: 0.236} , ... ]
+  def _write_hover_results_file(self, all_boxes,res_file):
+    results = []
+    # for each class
+    for cls_ind, cls in enumerate(self.classes):
+      if cls == '__background__': continue # if background, skip
+      print 'Collecting {} results ({:d}/{:d})'.format(cls, cls_ind, self.num_classes - 1)
+      class_ind = self._class_to_ind[cls]
+      # generate json for class
+      results.extend(self._hover_results_one_class(all_boxes[cls_ind],class_ind))
+    print 'Writing results json to {}'.format(res_file)
+    for item in results:
+      assert item['bbox'][0] <= item['bbox'][2]
+      assert item['bbox'][1] <= item['bbox'][3]
+      assert item['score'] <= 1.0
+      assert item['score'] >= 0.0
+    with open(res_file, 'w') as f:
+      json.dump(results, f)
 
   def evaluate_detections(self, all_boxes, output_dir):
-        comp_id = self._write_hover_results_file(all_boxes)
-        self._do_matlab_eval(comp_id, output_dir)
+    # create name of results file
+    res_file = os.path.join(output_dir, ('detections_' + 
+                                     self._image_set + 
+                                    '_results.json'))
+    # write out results to res_file
+    self._write_hover_results_file(all_boxes, res_file)
+    # evaluate results, print metrics
+    self.evaluate_recall(candidate_boxes=all_boxes)
 
   def competition_mode(self, on):
         if on:
