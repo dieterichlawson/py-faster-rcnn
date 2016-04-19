@@ -3,3 +3,4 @@ TRAIN:
   BG_THRESH_LO: 0.0
 TEST:
   HAS_RPN: True
+MODELS_DIR: /home/will/dev/py-faster-rcnn/models/hover
