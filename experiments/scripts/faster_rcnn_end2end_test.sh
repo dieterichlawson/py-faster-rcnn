@@ -56,14 +56,6 @@ echo Logging output to "$LOG"
   #--weights /home/will/dev/py-faster-rcnn/models/hover/places205VGG16/snapshot_iter_765280.caffemodel \
  #--weights data/imagenet_models/${NET}.v2.caffemodel \
   #--weights data/imagenet_models/${NET}.v2.caffemodel \
-  #--weights output/faster_rcnn_end2end/train/vgg16_faster_rcnn_end2end_iter_25000.caffemodel \
-time ./tools/train_net.py --gpu ${GPU_ID} \
-  --solver models/${PT_DIR}/${NET}/faster_rcnn_end2end/solver.prototxt \
-  --weights output/faster_rcnn_end2end/train/vgg16_faster_rcnn_end2end_p70_iter_40000.caffemodel \
-  --imdb ${TRAIN_IMDB} \
-  --iters ${ITERS} \
-  --cfg experiments/cfgs/faster_rcnn_end2end.yml \
-  ${EXTRA_ARGS}
 
 set +x
 NET_FINAL=`grep -B 1 "done solving" ${LOG} | grep "Wrote snapshot" | awk '{print $4}'`
@@ -71,7 +63,7 @@ set -x
 
 time ./tools/test_net.py --gpu ${GPU_ID} \
   --def models/${PT_DIR}/${NET}/faster_rcnn_end2end/test.prototxt \
-  --net ${NET_FINAL} \
-  --imdb ${TEST_IMDB} \
+  --net /home/will/dev/py-faster-rcnn/output/faster_rcnn_end2end/train/vgg16_faster_rcnn_end2end_p70_iter_40000.caffemodel  \
+  --imdb hover_test \
   --cfg experiments/cfgs/faster_rcnn_end2end.yml \
   ${EXTRA_ARGS}
