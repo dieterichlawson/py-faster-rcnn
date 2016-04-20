@@ -133,9 +133,25 @@ class imdb(object):
             self.roidb.append(entry)
             self._image_index = self._image_index * 2
 
+
     def evaluate_recall(self, candidate_boxes=None, thresholds=None,
                         area='all', limit=None):
-        """Evaluate detection proposal recall metrics.
+        """Evaluate detection proposal recall metrics. candidate_boxes are the predicted bounding
+        boxes and they are evaluated against this imdb's gt roidb. So basically it calls the 
+        default roidb and then gets all the gt entries in it.
+
+        For whatever reason, each imdb has a default roidb, and that roidb has both gt rois and
+        non-gt rois. The non-gt rois are generated from either a rpn-net or selective search
+        or whatever.
+
+        Parameters:
+           candidate_boxes: a list of predicted bounding boxes to evaluate. In the same format
+             as roidb: a list of 2-d numpy arrays. Each entry in the list contains the predicted
+             boxes for 1 image, so the list should be #images long. Each entry in the list is 
+             #boxesX4, and the boxes are parameterized using UL/LR, i.e. [x1,y1,x2,y2].
+           thresholds: a list of IOU thresholds to evaluate recall at. Defaults to 0.5:0.05:0.95
+           area: unknown
+           limit: unkown
 
         Returns:
             results: dictionary of results with keys
@@ -185,7 +201,7 @@ class imdb(object):
                 continue
             if limit is not None and boxes.shape[0] > limit:
                 boxes = boxes[:limit, :]
-
+            # calculate matrix of bbox overlaps between predicted and gt
             overlaps = bbox_overlaps(boxes.astype(np.float),
                                      gt_boxes.astype(np.float))
 
