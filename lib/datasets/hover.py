@@ -33,19 +33,17 @@ class hover(imdb):
           self._data_path = os.path.join(self._devkit_path)
         else:
           self._data_path = os.path.join(self._devkit_path)
-#           print 'testing data import'
         #self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_sz' 
-        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_test5_gt' 
+        self.annotations_file = '/home/will/dev/py-faster-rcnn/hover/rcnn_tri_box_with_buffer_test' 
         self._classes = ('__background__', # always index 0
                          'gable',
                          )
         print 'number of classes: ', self.num_classes
-#         pdb.set_trace()
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = ['.jpg']
         self._image_index = self._load_image_set_index()
         # Default to roidb handler
-        self._roidb_handler = self.selective_search_roidb
+        self._roidb_handler = self.gt_roidb
 
         # Specific config options
         self.config = {'cleanup'  : True,
@@ -63,7 +61,6 @@ class hover(imdb):
         """
         Return the absolute path to image i in the image sequence.
         """
-#         print self.image_path_from_index(self._image_index[i])
         return self.image_path_from_index(self._image_index[i])
 
   def image_path_from_index(self, index):
@@ -73,7 +70,6 @@ class hover(imdb):
         for ext in self._image_ext:
             image_path = os.path.join(self._data_path, 'Images',
                                   index + ext)
-            #print image_path
             if os.path.exists(image_path):
                 break
         assert os.path.exists(image_path), \
@@ -119,103 +115,6 @@ class hover(imdb):
 
         return gt_roidb
   
-  def selective_search_roidb(self):
-        """
-        Return the database of selective search regions of interest.
-        Ground-truth ROIs are also included.
-
-        This function loads/saves from/to a cache file to speed up future calls.
-        """
-        cache_file = os.path.join(self.cache_path,
-                                  self.name + '_selective_search_roidb.pkl')
-
-        if os.path.exists(cache_file):
-            with open(cache_file, 'rb') as fid:
-                roidb = cPickle.load(fid)
-            print '{} ss roidb loaded from {}'.format(self.name, cache_file)
-            return roidb
-
-        if self._image_set != 'test':
-            gt_roidb = self.gt_roidb()
-            ss_roidb = self._load_selective_search_roidb(gt_roidb)
-            roidb = datasets.imdb.merge_roidbs(gt_roidb, ss_roidb)
-        else:
-            roidb = self._load_selective_search_roidb(None)
-            print len(roidb)
-	with open(cache_file, 'wb') as fid:
-            cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
-        print 'wrote ss roidb to {}'.format(cache_file)
-
-        return roidb
-
-  def _load_selective_search_roidb(self, gt_roidb):
-        filename = os.path.abspath(os.path.join(self._devkit_path,
-                                                self.name + '.mat'))
-        print filename
-        assert os.path.exists(filename), \
-               'Selective search data not found at: {}'.format(filename)
-        raw_data = sio.loadmat(filename)['all_boxes'].ravel()
-# 	pdb.set_trace()
-
-        box_list = []
-        for i in xrange(raw_data.shape[0]):
-            box_list.append(raw_data[i][:, (1, 0, 3, 2)] - 1)
-
-# 	pdb.set_trace()
-        return self.create_roidb_from_box_list(box_list, gt_roidb)
-
-  def selective_search_IJCV_roidb(self):
-        """
-        eturn the database of selective search regions of interest.
-        Ground-truth ROIs are also included.
-
-        This function loads/saves from/to a cache file to speed up future calls.
-        """
-        cache_file = os.path.join(self.cache_path,
-                '{:s}_selective_search_IJCV_top_{:d}_roidb.pkl'.
-                format(self.name, self.config['top_k']))
-
-        print cache_file
-#         pdb.set_trace()
-        if os.path.exists(cache_file):
-            with open(cache_file, 'rb') as fid:
-                roidb = cPickle.load(fid)
-            print '{} ss roidb loaded from {}'.format(self.name, cache_file)
-            return roidb
-
-        gt_roidb = self.gt_roidb()
-        ss_roidb = self._load_selective_search_IJCV_roidb(gt_roidb)
-        roidb = datasets.imdb.merge_roidbs(gt_roidb, ss_roidb)
-        with open(cache_file, 'wb') as fid:
-            cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
-        print 'wrote ss roidb to {}'.format(cache_file)
-
-        return roidb
-
-  def _load_selective_search_IJCV_roidb(self, gt_roidb):
-        IJCV_path = os.path.abspath(os.path.join(self.cache_path, '..',
-                                                 'selective_search_IJCV_data',
-                                                 self.name))
-        print IJCV_PATH
-        assert os.path.exists(IJCV_path), \
-               'Selective search IJCV data not found at: {}'.format(IJCV_path)
-
-        top_k = self.config['top_k']
-        box_list = []
-        for i in xrange(self.num_images):
-            filename = os.path.join(IJCV_path, self.image_index[i] + '.mat')
-            raw_data = sio.loadmat(filename)
-            box_list.append((raw_data['boxes'][:top_k, :]-1).astype(np.uint16))
-
-        return self.create_roidb_from_box_list(box_list, gt_roidb)
-  
-  def floor_or_ceil(self, val, dim_max):
-      if val < 0:
-        return 0
-      if val >= dim_max:
-        return dim_max - 1
-      return val
-
   def parse_line(self,line):
       def grouper(n, iterable, fillvalue=None):
           args = [iter(iterable)] * n
@@ -267,7 +166,6 @@ class hover(imdb):
               'seg_areas': seg_areas,
               'flipped' : False}
 
-
   def rpn_roidb(self):
         if self._image_set != 'test':
             gt_roidb = self.gt_roidb()
@@ -275,7 +173,6 @@ class hover(imdb):
             roidb = imdb.merge_roidbs(gt_roidb, rpn_roidb)
         else:
             roidb = self._load_rpn_roidb(None)
-
         return roidb
 
   def _load_rpn_roidb(self, gt_roidb):
@@ -286,10 +183,6 @@ class hover(imdb):
         with open(filename, 'rb') as f:
             box_list = cPickle.load(f)
         return self.create_roidb_from_box_list(box_list, gt_roidb)
-
-  def _do_detection_eval(self, res_file, output_dir):
-    # evaluate recall
-    print "detection eval not implemented yet"
 
   # create list of dicts of results for one class
   # boxes is #images x # dets x 5
@@ -335,7 +228,11 @@ class hover(imdb):
     # write out results to res_file
     self._write_hover_results_file(all_boxes, res_file)
     # evaluate results, print metrics
-    self.evaluate_recall(candidate_boxes=all_boxes)
+    from IPython import embed
+    #embed()
+    recs = self.evaluate_recall(candidate_boxes=[a[:,0:4] for a in all_boxes[1]])
+    for rec,thresh in [(recs['recalls'][i],recs['thresholds'][i]) for i in range(len(recs['recalls']))]:
+      print "Recall @ %0.2f IOU: %0.4f" % (thresh, rec)
 
   def competition_mode(self, on):
         if on:
