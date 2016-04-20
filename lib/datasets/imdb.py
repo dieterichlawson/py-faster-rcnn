@@ -198,11 +198,13 @@ class imdb(object):
                 # find which gt box is 'best' covered (i.e. 'best' = most iou)
                 gt_ind = max_overlaps.argmax()
                 gt_ovr = max_overlaps.max()
-                assert(gt_ovr >= 0)
-                # find the proposal box that covers the best covered gt box
-                box_ind = argmax_overlaps[gt_ind]
-                # record the iou coverage of this gt box
-                _gt_overlaps[j] = overlaps[box_ind, gt_ind]
+                if gt_ovr >=0: # if the box was predicted
+                  # find the proposal box that covers the best covered gt box
+                  box_ind = argmax_overlaps[gt_ind]
+                  # record the iou coverage of this gt box
+                  _gt_overlaps[j] = overlaps[box_ind, gt_ind]
+                else: # otherwise, we missed it
+                  _gt_overlaps[j] = -1.
                 assert(_gt_overlaps[j] == gt_ovr)
                 # mark the proposal box and the gt box as used
                 overlaps[box_ind, :] = -1

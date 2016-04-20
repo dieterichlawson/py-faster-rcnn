@@ -8,3 +8,5 @@ lib/pycocotools/_mask.so
 *.tar
 *.tar.gz
 *.tgz
+*.pkl
+output
