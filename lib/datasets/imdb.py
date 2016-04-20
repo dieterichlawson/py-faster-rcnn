@@ -246,41 +246,33 @@ class imdb(object):
                 'Number of boxes must match number of ground-truth images'
         roidb = []
         for i in xrange(self.num_images):
-            boxes = box_list[i]
+            boxes = box_list[i] # get all boxes in list for image
             num_boxes = boxes.shape[0]
+            # will hold overlap between boxes for this image and each class
             overlaps = np.zeros((num_boxes, self.num_classes), dtype=np.float32)
-
+            # if there are gt boxes for this image, compute overlaps
             if gt_roidb is not None and gt_roidb[i]['boxes'].size > 0:
-                gt_boxes = gt_roidb[i]['boxes']
-                gt_classes = gt_roidb[i]['gt_classes']
-                gt_overlaps = bbox_overlaps(boxes.astype(np.float),
+                gt_boxes = gt_roidb[i]['boxes'] # get all gt boxes for this image
+                gt_classes = gt_roidb[i]['gt_classes'] # get classes of all gt boxes for this image
+                gt_overlaps = bbox_overlaps(boxes.astype(np.float), # calculate overlaps between supplied and gt boxes
                                             gt_boxes.astype(np.float))
-#                 if i == 35:
-#                 	pdb.set_trace()
-#                 print 'boxes_length: ', len(gt_boxes)
-#                 print 'gt_overlaps:', gt_overlaps
-#                 print 'length:', len(gt_overlaps)
-#                 if len(gt_boxes) != 0:
-#                   pdb.set_trace()
-#                   print 'gt_overlaps:', gt_overlaps
-#                 print gt_overlaps, i
+                # for each given box, find gt box index that it overlaps with the most
                 argmaxes = gt_overlaps.argmax(axis=1)
+                # for each given box, find overlap with gt box that it overlaps with the most
                 maxes = gt_overlaps.max(axis=1)
+                # find boxes that have non-zero overlap with gt
                 I = np.where(maxes > 0)[0]
+                # set overlap between boxes that have non-zero overlap with gt (I)
+                # and the classes that they have maximum overlap with (gt_classes[argmaxes[I]])
+                # as the computed overlap. (maxes[I])
                 overlaps[I, gt_classes[argmaxes[I]]] = maxes[I]
-#                   print 'overlaps:', overlaps
-#                 else:
-#                 	argmaxes = []
-#                 	overlaps = [[]]
-#                 	maxes = []
-
             overlaps = scipy.sparse.csr_matrix(overlaps)
             roidb.append({
-                'boxes' : boxes,
-                'gt_classes' : np.zeros((num_boxes,), dtype=np.int32),
+                'boxes' : boxes, # supplied boxes
+                'gt_classes' : np.zeros((num_boxes,), dtype=np.int32), # unknown
                 'gt_overlaps' : overlaps,
                 'flipped' : False,
-                'seg_areas' : np.zeros((num_boxes,), dtype=np.float32),
+                'seg_areas' : np.zeros((num_boxes,), dtype=np.float32), # unkown
             })
         return roidb
 
